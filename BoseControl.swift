@@ -9,7 +9,7 @@ import SwiftUI
 import IOBluetooth
 
 // ---- Edit these ----
-let deviceAddress = "00-00-00-00-00-00" // Replace with your headphones' Bluetooth address.
+let deviceAddress = "68-f2-1f-45-c2-71"
 let bmapChannel: BluetoothRFCOMMChannelID = 8
 let modeNames = ["Quiet", "Aware", "Commute", "Home"]   // index = value of 1f.03
 // --------------------
@@ -49,16 +49,28 @@ final class BoseLink: NSObject, ObservableObject, IOBluetoothRFCOMMChannelDelega
     private func tick() {
         if let ch = channel, ch.isOpen() { query(); return }
         setDisconnected()
-        guard !opening,
-              let dev = IOBluetoothDevice(addressString: deviceAddress),
-              dev.isConnected() else { return }
+        guard !opening else { return }
+        guard let dev = IOBluetoothDevice(addressString: deviceAddress) else {
+            note("no device for address \(deviceAddress)"); return
+        }
+        guard dev.isConnected() else {
+            note("headset not connected to this Mac"); return
+        }
         opening = true
         var ch: IOBluetoothRFCOMMChannel?
-        if dev.openRFCOMMChannelAsync(&ch, withChannelID: bmapChannel, delegate: self) == kIOReturnSuccess {
+        let r = dev.openRFCOMMChannelAsync(&ch, withChannelID: bmapChannel, delegate: self)
+        note("open async returned \(r)")
+        if r == kIOReturnSuccess {
             channel = ch
         } else {
             opening = false
         }
+    }
+
+    // Logs only when the message changes, so `log stream` stays readable.
+    private var lastNote = ""
+    private func note(_ s: String) {
+        if s != lastNote { lastNote = s; NSLog("BoseControl: %@", s) }
     }
 
     private func setDisconnected() {
@@ -94,6 +106,7 @@ final class BoseLink: NSObject, ObservableObject, IOBluetoothRFCOMMChannelDelega
 
     func rfcommChannelOpenComplete(_ rfcommChannel: IOBluetoothRFCOMMChannel!, status error: IOReturn) {
         opening = false
+        note("open complete, status \(error)")
         if error == kIOReturnSuccess {
             channel = rfcommChannel
             buffer = []
@@ -112,6 +125,7 @@ final class BoseLink: NSObject, ObservableObject, IOBluetoothRFCOMMChannelDelega
     }
 
     func rfcommChannelClosed(_ rfcommChannel: IOBluetoothRFCOMMChannel!) {
+        note("channel closed by remote")
         channel = nil
         setDisconnected()
     }
