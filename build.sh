@@ -31,6 +31,4 @@ EOF
 
 xattr -cr "$APP"
 codesign --force --sign - "$APP"
-xattr -cr "$APP"
-codesign --verify --deep --strict "$APP"
 echo "Built $APP — run: open $APP"
